@@ -1,4 +1,3 @@
-
 virtmem: main.o page_table.o disk.o program.o
 	gcc main.o page_table.o disk.o program.o -o virtmem
 
