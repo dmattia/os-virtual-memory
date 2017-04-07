@@ -84,12 +84,12 @@ int remove_frame_using_ss(struct page_table *pt) {
       oldest = frame_list[i].last_updated;
     }
   }
-    if(frame_list[frame_to_remove].dirty){
-        return lrand48() % nframes;
-    }
-    else{
-        return frame_to_remove;
-    }
+  if(frame_list[frame_to_remove].dirty){
+    return lrand48() % nframes;
+  }
+  else{
+    return frame_to_remove;
+  }
 }
 
 /** Finds the first free frame of a page table.  
@@ -195,7 +195,7 @@ void page_fault_handler( struct page_table *pt, int page )
 int main( int argc, char *argv[] )
 {
   if(argc!=5) {
-    printf("use: virtmem <npages> <nframes> <rand|fifo|lru|custom> <sort|scan|focus>\n");
+    printf("use: virtmem <npages> <nframes> <rand|fifo|custom> <sort|scan|focus>\n");
     return 1;
   }
 
@@ -234,10 +234,7 @@ int main( int argc, char *argv[] )
     find_frame_to_remove_function = &remove_frame_using_fifo;
 
   } else if(!strcmp(algorithm, "custom")) {
-    find_frame_to_remove_function = &remove_frame_using_lru;
-
-  } else if(!strcmp(algorithm, "lru")) {
-    find_frame_to_remove_function = &remove_frame_using_lru;
+    find_frame_to_remove_function = &remove_frame_using_ss;
 
   } else {
     fprintf(stderr, "unknown algorithm: %s\n", algorithm);
