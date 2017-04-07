@@ -74,7 +74,8 @@ int remove_frame_using_fifo(struct page_table *pt) {
  * @param pt  The page table
  * @returns   Frame index to remove
  */
-int remove_frame_using_lru(struct page_table *pt) {
+int remove_frame_using_ss(struct page_table *pt) {
+    
   int nframes = page_table_get_nframes(pt);
   int i, frame_to_remove = 0, oldest = 10000000;
   for (i=0; i < nframes; ++i) {
@@ -83,7 +84,12 @@ int remove_frame_using_lru(struct page_table *pt) {
       oldest = frame_list[i].last_updated;
     }
   }
-  return frame_to_remove;
+    if(frame_list[frame_to_remove].dirty){
+        return lrand48() % nframes;
+    }
+    else{
+        return frame_to_remove;
+    }
 }
 
 /** Finds the first free frame of a page table.  
