@@ -2,23 +2,55 @@
 
 import subprocess
 import sys
+import numpy as np
+import matplotlib.pyplot as plt
 
-def table(res):
-    # print "| {0:^20} | {1:^20} | {2:^20} | {3:^20} |".format("NITEMS", "SORT", "TIME", "SPACE")
-    # for r in res:
-    #     print "| {0:^20} | {1:^20} | {2:^20} | {3:^20} |".format(r[0], r[1], r[2][0], r[2][1])
-    for r in res:
-        print "Result for command [ {} {} {} {} ]  is [ Result: {} Page_Faults:{} Disk_Reads:{} Disk_Writes:{} ]\n".format(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7])
+def single_plot(x, y, title):
+  fig = plt.figure()
 
+  ax = fig.add_subplot(111)
+  ax.set_xlabel("Number of frames")
+  ax.set_ylabel(title.split('_')[-1])
+  fig.suptitle(title, fontsize=14, fontweight='bold')
+
+  plt.scatter(x, y)
+
+  plt.savefig('images/' + title + '.png')
+  plt.close()
+
+def plot(res):
+  methods = ["rand", "fifo", "custom"]
+  programs = ["scan", "sort", "focus"]
+
+  for method in methods:
+    for program in programs:
+      print("Method: " + method + " and program: " + program)
+      results = [r for r in res if r[2] == method and r[3] == program]
+
+      frame_counts = [int(r[1]) for r in results]
+
+      page_faults = [int(r[-3]) for r in results]
+      title = method + '_' + program + '_PageFaults'
+      single_plot(frame_counts, page_faults, title)
+
+      disk_reads = [int(r[-2]) for r in results]
+      title = method + '_' + program + '_DiskReads'
+      single_plot(frame_counts, disk_reads, title) 
+
+      disk_writes = [int(r[-1]) for r in results]
+      title = method + '_' + program + '_DiskWrites'
+      single_plot(frame_counts, disk_writes, title)
+  
 def main():
     results = []
-    pairs = [(4, 4), (4, 3), (3, 4), (20, 15), (25, 15), (15, 25), (50, 50)]#, (40, 60), (60,40), (75, 80), (80, 75), (100, 90), (90, 100), (100, 100)]
+    frames = np.linspace(3, 100, 10)
+    pairs = [(100, int(frame)) for frame in frames]
     for npage, nframe in pairs:
         for method in ["rand", "fifo", "custom"]:
             for program in ["scan", "sort", "focus"]:
-                input = "./virtmem {} {} {} {}".format(npage, nframe, method, program)
+                input = "./virtmem " + str(npage) + " " + str(nframe) + " " + method + " " + program
                 print "testing", input
-                result = subprocess.check_output(input.split())
+                result = subprocess.Popen(input.split(), stdout=subprocess.PIPE).communicate()[0]
                 output = []
                 for x in result.split('\n'):
                     i = 3 if len(x.split()) > 3 else 2
@@ -27,6 +59,7 @@ def main():
                 output = [npage, nframe, method, program] + output
                 results.append(output)
 
-    table(results)
+    plot(results)
+
 if __name__ == '__main__':
     main()
