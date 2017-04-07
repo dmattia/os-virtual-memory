@@ -30,6 +30,9 @@ typedef struct {
   int is_free;
 } Frame;
 
+//DEBUG Variables
+int prev_page = -1;
+
 // Global variables
 Frame *frame_list;
 struct disk *disk;
@@ -45,11 +48,11 @@ int remove_frame_using_random(struct page_table *pt) {
 
 int remove_frame_using_fifo(struct page_table *pt) {
   int nframes = page_table_get_nframes(pt);
-  int i, frame_to_remove = 0, newest = 0;
+  int i, frame_to_remove = 0, oldest = 1000000;
   for (i=0; i < nframes; ++i) {
-    if (frame_list[i].time_added > newest) {
+    if (frame_list[i].time_added < oldest) {
       frame_to_remove = i;
-      newest = frame_list[i].time_added;
+      oldest = frame_list[i].time_added;
     }
   }
   return frame_to_remove;
@@ -98,33 +101,69 @@ void set_page_to_frame_of_page_table(struct page_table *pt, int page, int frame)
 
 void page_fault_handler( struct page_table *pt, int page )
 {
-  page_faults++;
+    page_faults++;
 	printf("page fault on page #%d\n", page);
-
-  //page_table_set_entry(pt, page, page, PROT_READ|PROT_WRITE);
   
-  // Check if page is already in page table
-  int current_frame;
-  int permissions;
-  page_table_get_entry(pt, page, &current_frame, &permissions);
-  if ( permissions && !(permissions & PROT_WRITE) ) {
-    // page is in page table, but does not have write permissions
-    printf("Adding write permissions to page: %d\n", page);
-    frame_list[current_frame].dirty = 1;
-    page_table_set_entry(pt, page, current_frame, PROT_READ|PROT_WRITE);  
-    return;
-  }
-  
-  // Page was not in page table yet
-  int frame = find_free_frame(pt);
-  if (frame == NO_FREE_FRAMES) {
-    // No frames are free, find a frame to remove
-    //throw_not_implemented_error("Handle when no frames are free");
-    frame = find_frame_to_remove_function(pt);
-  }
-
-  printf("Matching page #%d to frame #%d\n", page, frame);
-  set_page_to_frame_of_page_table(pt, page, frame);
+    // Check if page is already in page table
+    int current_frame;
+    int permissions;
+    page_table_get_entry(pt, page, &current_frame, &permissions);
+    
+    //print page table here
+    page_table_print(pt);
+    if (permissions) {
+        //sift the permissions and assign the correct ones
+        if(permissions & PROT_WRITE) {
+            // page is in page table, but does not have write permissions
+            printf("Adding write permissions to page: %d\n", page);
+            
+            frame_list[current_frame].dirty = 1;
+            page_table_set_entry(pt, page, current_frame, PROT_READ|PROT_WRITE);
+        }
+        //this should not really ever occur, only if in table without PROT_READ
+        else if(permissions & PROT_READ) {
+            printf("Adding write permissions to page: %d\n", page);
+            frame_list[current_frame].dirty = 1;
+            page_table_set_entry(pt, page, current_frame, PROT_READ|PROT_WRITE);
+            page_table_print(pt);}
+    }
+    else{
+        //no current permissions, need to insert into table
+        //either set, or remove and set
+        int frame = find_free_frame(pt);
+        if (frame == NO_FREE_FRAMES) {
+            // No frames are free, find a frame to remove
+            frame = find_frame_to_remove_function(pt);
+            int curr_page = frame_list[frame].page;
+            printf("Matching page #%d to used frame #%d with matching page %d\n", page, frame, curr_page);
+            
+            char *physmem = page_table_get_physmem(pt);
+            disk_write(disk, frame, &physmem[frame * BLOCK_SIZE]);
+            disk_writes++;
+            
+            disk_read(disk, page, &physmem[frame * BLOCK_SIZE]);
+            disk_reads++;
+            
+            frame_list[frame].page = page;
+            frame_list[frame].is_free = 0;
+            frame_list[frame].dirty = 0;
+            frame_list[frame].time_added = page_faults;
+            page_table_set_entry(pt, page, frame, PROT_READ);
+            
+            page_table_set_entry(pt, curr_page, 0, 0);
+            page_table_print(pt);
+            
+            if(prev_page == page) exit(0);
+            prev_page = page;
+            
+        }
+        else{
+            //there was a free frame;
+            printf("Matching page #%d to free frame #%d\n", page, frame);
+            set_page_to_frame_of_page_table(pt, page, frame);
+            page_table_print(pt);
+        }
+    }
 }
 
 int main( int argc, char *argv[] )
@@ -136,7 +175,7 @@ int main( int argc, char *argv[] )
 
 	int npages = atoi(argv[1]);
 	int nframes = atoi(argv[2]);
-  const char *algorithm = argv[3];
+    const char *algorithm = argv[3];
 	const char *program = argv[4];
 
 	disk = disk_open("myvirtualdisk", npages);
